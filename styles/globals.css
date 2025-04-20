@@ -1,0 +1,157 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-discord-dark text-discord-light;
+    font-family: 'Whitney', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+
+  * {
+    @apply box-border p-0 m-0;
+  }
+
+  a {
+    @apply text-discord-blurple no-underline;
+  }
+
+  a:hover {
+    @apply underline;
+  }
+}
+
+@layer components {
+  .discord-button {
+    @apply bg-discord-blurple hover:bg-opacity-80 text-white py-2 px-4 rounded transition-all duration-200;
+  }
+  
+  .server-icon {
+    @apply w-12 h-12 rounded-full bg-discord-darker flex items-center justify-center text-white font-semibold cursor-pointer transition-all duration-200 hover:rounded-2xl;
+  }
+  
+  .channel {
+    @apply flex items-center py-1 px-2 rounded cursor-pointer text-gray-400 hover:bg-gray-700 hover:text-white;
+  }
+  
+  .channel.active {
+    @apply bg-gray-700 text-white;
+  }
+  
+  .message {
+    @apply py-2 px-4 hover:bg-gray-700 flex gap-3;
+  }
+  
+  .chat-input {
+    @apply bg-gray-700 rounded-lg p-4 text-white w-full focus:outline-none;
+  }
+}
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid #eaeaea;
+}
+
+.header h1 {
+  font-size: 2rem;
+  color: #0070f3;
+}
+
+nav {
+  display: flex;
+  gap: 1.5rem;
+}
+
+.main {
+  padding: 2rem 0;
+  min-height: calc(100vh - 150px);
+}
+
+.main h2 {
+  margin-bottom: 1.5rem;
+}
+
+.article-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.article-card {
+  background: white;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  padding: 1.5rem;
+  transition: transform 0.2s ease;
+}
+
+.article-card:hover {
+  transform: translateY(-5px);
+}
+
+.article-card h3 {
+  margin-bottom: 0.5rem;
+  color: #0070f3;
+}
+
+.article-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.footer {
+  padding: 2rem 0;
+  border-top: 1px solid #eaeaea;
+  text-align: center;
+  color: #666;
+}
+
+.form-group {
+  margin-bottom: 1.5rem;
+}
+
+label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+input, textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+textarea {
+  min-height: 200px;
+}
+
+button {
+  background-color: #0070f3;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s ease;
+}
+
+button:hover {
+  background-color: #0051a9;
+} 
