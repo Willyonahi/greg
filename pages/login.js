@@ -20,26 +20,24 @@ export default function Login() {
     setError('');
     
     try {
-      const response = await fetch('/api/auth/token-login', {
-        method: 'POST',
+      // First, check if token works by directly calling Discord API
+      const testResponse = await fetch('https://discord.com/api/v10/users/@me', {
         headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ token }),
+          Authorization: token
+        }
       });
       
-      const data = await response.json();
-      
-      if (response.ok) {
-        // Store token in localStorage
-        localStorage.setItem('discord_token', token);
-        router.push('/');
-      } else {
-        setError(data.message || 'Failed to authenticate. Please check your token.');
+      if (!testResponse.ok) {
+        throw new Error('Invalid Discord token');
       }
+      
+      // If we get here, token is valid
+      localStorage.setItem('discord_token', token);
+      console.log('Token saved, redirecting...');
+      router.push('/');
     } catch (err) {
-      setError('An error occurred. Please try again.');
-      console.error(err);
+      console.error('Login error:', err);
+      setError(err.message || 'Failed to authenticate. Please check your token.');
     } finally {
       setIsLoading(false);
     }
