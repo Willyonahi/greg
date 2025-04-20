@@ -1,11 +1,12 @@
-import { useSession, signIn, signOut } from 'next-auth/react';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { useState, useEffect } from 'react';
+import { isAuthenticated, getCurrentUser, getUserGuilds, getGuildChannels, getChannelMessages, sendMessage } from '../lib/discord';
 
 export default function Home() {
-  const { data: session, status } = useSession();
   const router = useRouter();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [servers, setServers] = useState([]);
   const [channels, setChannels] = useState([]);
   const [activeServer, setActiveServer] = useState(null);
@@ -13,48 +14,87 @@ export default function Home() {
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState('');
 
-  // Redirect to login if not authenticated
+  // Check authentication and redirect if needed
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-    }
-  }, [status, router]);
+    const checkAuth = async () => {
+      if (!isAuthenticated()) {
+        router.push('/login');
+        return;
+      }
 
-  // Mock data for demonstration
-  useEffect(() => {
-    if (status === 'authenticated') {
-      // In a real app, these would come from Discord API
-      setServers([
-        { id: '1', name: 'General Server', icon: 'G' },
-        { id: '2', name: 'Gaming', icon: '🎮' },
-        { id: '3', name: 'Study Group', icon: '📚' }
-      ]);
-    }
-  }, [status]);
+      try {
+        // Fetch user data
+        const userData = await getCurrentUser();
+        setUser(userData);
+        
+        // Fetch servers/guilds
+        const guilds = await getUserGuilds();
+        setServers(guilds.map(guild => ({
+          id: guild.id,
+          name: guild.name,
+          icon: guild.icon 
+            ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png` 
+            : guild.name.charAt(0)
+        })));
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        // If there's an error (like invalid token), redirect to login
+        localStorage.removeItem('discord_token');
+        router.push('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, [router]);
 
   // Load channels when server is selected
   useEffect(() => {
-    if (activeServer) {
-      // Mock data - would be API call in real app
-      setChannels([
-        { id: '1', name: 'general', type: 'text' },
-        { id: '2', name: 'voice-chat', type: 'voice' },
-        { id: '3', name: 'announcements', type: 'text' }
-      ]);
-    }
+    const loadChannels = async () => {
+      if (!activeServer) return;
+      
+      try {
+        const channelsData = await getGuildChannels(activeServer);
+        setChannels(channelsData.filter(channel => 
+          channel.type === 0 || channel.type === 2
+        ).map(channel => ({
+          id: channel.id,
+          name: channel.name,
+          type: channel.type === 0 ? 'text' : 'voice'
+        })));
+      } catch (error) {
+        console.error('Error loading channels:', error);
+      }
+    };
+    
+    loadChannels();
   }, [activeServer]);
 
   // Load messages when channel is selected
   useEffect(() => {
-    if (activeChannel) {
-      // Mock data - would be API call in real app
-      setMessages([
-        { id: '1', author: 'User1', content: 'Hello everyone!', timestamp: new Date().toISOString() },
-        { id: '2', author: 'User2', content: 'Hey there! How are you?', timestamp: new Date().toISOString() },
-        { id: '3', author: 'User3', content: 'I\'m working on a new project.', timestamp: new Date().toISOString() }
-      ]);
-    }
-  }, [activeChannel]);
+    const loadMessages = async () => {
+      if (!activeChannel) return;
+      
+      const selectedChannel = channels.find(c => c.id === activeChannel);
+      // Only load messages for text channels
+      if (!selectedChannel || selectedChannel.type !== 'text') return;
+      
+      try {
+        const messagesData = await getChannelMessages(activeChannel);
+        setMessages(messagesData.map(msg => ({
+          id: msg.id,
+          author: msg.author.username,
+          content: msg.content,
+          timestamp: msg.timestamp
+        })));
+      } catch (error) {
+        console.error('Error loading messages:', error);
+      }
+    };
+    
+    loadMessages();
+  }, [activeChannel, channels]);
 
   const handleServerClick = (serverId) => {
     setActiveServer(serverId);
@@ -65,30 +105,32 @@ export default function Home() {
     setActiveChannel(channelId);
   };
 
-  const handleSendMessage = (e) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!messageInput.trim()) return;
+    if (!messageInput.trim() || !activeChannel) return;
 
-    // In a real app, would send to Discord API
-    const newMessage = {
-      id: Date.now().toString(),
-      author: session.user.name,
-      content: messageInput,
-      timestamp: new Date().toISOString()
-    };
+    try {
+      const message = await sendMessage(activeChannel, messageInput);
+      setMessages(prev => [...prev, {
+        id: message.id,
+        author: user.username,
+        content: message.content,
+        timestamp: message.timestamp
+      }]);
+      setMessageInput('');
+    } catch (error) {
+      console.error('Failed to send message:', error);
+    }
+  };
 
-    setMessages([...messages, newMessage]);
-    setMessageInput('');
+  const handleLogout = () => {
+    localStorage.removeItem('discord_token');
+    router.push('/login');
   };
 
   // Show loading state
-  if (status === 'loading') {
+  if (loading) {
     return <div className="flex items-center justify-center h-screen bg-discord-dark">Loading...</div>;
-  }
-
-  // If not authenticated, show nothing (will redirect)
-  if (status === 'unauthenticated') {
-    return null;
   }
 
   return (
@@ -108,7 +150,10 @@ export default function Home() {
             onClick={() => handleServerClick(server.id)}
             title={server.name}
           >
-            {server.icon}
+            {typeof server.icon === 'string' && server.icon.startsWith('http') 
+              ? <img src={server.icon} alt={server.name} className="w-full h-full rounded-full object-cover" />
+              : server.name.charAt(0)
+            }
           </div>
         ))}
       </div>
@@ -153,24 +198,29 @@ export default function Home() {
           </div>
           
           <div className="p-2 bg-discord-darker flex items-center">
-            {session.user?.image && (
+            {user && (
               <div className="w-8 h-8 rounded-full bg-gray-700 mr-2 overflow-hidden">
-                <img 
-                  src={session.user.image} 
-                  alt={session.user.name || 'User'} 
-                  width={32} 
-                  height={32} 
-                />
+                {user.avatar ? (
+                  <img 
+                    src={`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png`} 
+                    alt={user.username} 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white font-semibold">
+                    {user.username.charAt(0)}
+                  </div>
+                )}
               </div>
             )}
             <div className="flex-1 truncate">
-              <div className="text-white text-sm font-medium truncate">{session.user?.name || 'User'}</div>
-              <div className="text-gray-400 text-xs truncate">{session.user?.email || ''}</div>
+              <div className="text-white text-sm font-medium truncate">{user?.username || 'User'}</div>
+              <div className="text-gray-400 text-xs truncate">{user?.discriminator ? `#${user.discriminator}` : ''}</div>
             </div>
             <button 
-              onClick={() => signOut()}
+              onClick={handleLogout}
               className="text-gray-400 hover:text-white p-1"
-              title="Sign Out"
+              title="Logout"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
@@ -188,7 +238,7 @@ export default function Home() {
           <>
             <div className="p-4 border-b border-gray-800 shadow-sm">
               <h3 className="font-bold text-white flex items-center">
-                <span className="mr-1">#</span>
+                <span className="mr-1">{channels.find(c => c.id === activeChannel)?.type === 'text' ? '#' : '🔊'}</span>
                 {channels.find(c => c.id === activeChannel)?.name || 'channel'}
               </h3>
             </div>
@@ -212,17 +262,19 @@ export default function Home() {
               ))}
             </div>
             
-            <div className="p-4 border-t border-gray-800">
-              <form onSubmit={handleSendMessage}>
-                <input
-                  type="text"
-                  className="chat-input"
-                  placeholder={`Message #${channels.find(c => c.id === activeChannel)?.name || 'channel'}`}
-                  value={messageInput}
-                  onChange={(e) => setMessageInput(e.target.value)}
-                />
-              </form>
-            </div>
+            {channels.find(c => c.id === activeChannel)?.type === 'text' && (
+              <div className="p-4 border-t border-gray-800">
+                <form onSubmit={handleSendMessage}>
+                  <input
+                    type="text"
+                    className="chat-input"
+                    placeholder={`Message #${channels.find(c => c.id === activeChannel)?.name || 'channel'}`}
+                    value={messageInput}
+                    onChange={(e) => setMessageInput(e.target.value)}
+                  />
+                </form>
+              </div>
+            )}
           </>
         ) : (
           <div className="flex-1 flex items-center justify-center text-discord-light">
